@@ -126,7 +126,7 @@ if (self.contentView == NULL)
 if (self.progressMode == ProgressOverlayViewProgressModeDeterminate && self.progressView == NULL)
 	{
 	self.progressView = [[[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault] autorelease];
-	self.progressView.progress = 0.0;
+	self.progressView.progress = 0.0f;
 	[self.contentView addSubview:self.progressView];
 	}
 
@@ -183,7 +183,7 @@ if (self.size == ProgressOverlayViewSizeHUD)
 
     CGRect rect = self.bounds;
 
-    CGFloat radius = 15.0;
+    CGFloat radius = 15.0f;
     
     CGFloat minx = CGRectGetMinX(rect);
     CGFloat midx = CGRectGetMidX(rect);
@@ -330,7 +330,7 @@ self.displayTime = [NSDate date];
 
 if (self.fadeMode == ProgressOverlayViewFadeModeIn || self.fadeMode == ProgressOverlayViewFadeModeInOut)
     {
-    self.alpha = 0.0;
+    self.alpha = 0.0f;
     self.fadeTimer = [[NSTimer scheduledTimerWithTimeInterval:PROGRESS_OVERLAY_VIEW_FADE_TIME 
                                                        target:self
                                                      selector:@selector(fadeIn:) 
@@ -338,7 +338,7 @@ if (self.fadeMode == ProgressOverlayViewFadeModeIn || self.fadeMode == ProgressO
                                                       repeats:YES] retain];
     }
 else
-    self.alpha = 1.0;
+    self.alpha = 1.0f;
 }
 
 - (void)hide
@@ -403,22 +403,26 @@ guardView.backgroundColor = (self.guardColor ? self.guardColor : [UIColor clearC
 
 - (void)fadeIn:(NSTimer *)theTimer
 {
-if (self.alpha >= 1.0)
+if (self.alpha >= 1.0f)
+    {
     [theTimer invalidate];
+    theTimer = NULL;
+    }
 else
-    self.alpha += 0.1;
+    self.alpha += 0.1f;
 }
 
 - (void)fadeOut:(NSTimer *)theTimer
 {
-if (self.alpha <= 0.1)
+if (self.alpha <= 0.1f)
     {
     [theTimer invalidate];
+    theTimer = NULL;
     [guardView removeFromSuperview];
     [self removeFromSuperview];
     }
 else
-    self.alpha -= 0.1;
+    self.alpha -= 0.1f;
 }
 
 @end
