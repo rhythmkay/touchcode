@@ -68,6 +68,7 @@ static CProgressOverlayView *gInstance = NULL;
 @synthesize label;
 @synthesize displayTimer;
 @synthesize fadeTimer;
+@dynamic showing;
 
 + (CProgressOverlayView *)instance
 {
@@ -167,11 +168,6 @@ else if (self.progressMode == ProgressOverlayViewProgressModeIndeterminate)
 
 - (void)drawRect:(CGRect)inRect
 {
-
-// we don't want to draw the rounded rect unless the guard bg is transparent, otherwise, it looks extremely dark.
-if (CGColorGetAlpha(self.guardColor.CGColor) != 0.0)
-	return;
-	
 if (self.size == ProgressOverlayViewSizeHUD)
     {
     UIColor *color = PROGRESS_OVERLAY_VIEW_BACKGROUND_COLOR;
@@ -239,6 +235,11 @@ return(self.progressView.progress);
 self.progressView.progress = inProgress;
 }
 
+- (BOOL)showing
+{
+return(self.superview != NULL);
+}
+
 #pragma mark -
 
 - (void)update
@@ -258,6 +259,15 @@ self.activityIndicatorView = NULL;
 self.label = NULL;
 
 [self layoutSubviews];
+}
+
+- (void)showInView:(UIView *)inView withDelay:(NSTimeInterval)inTimeInterval labelText:(NSString *)inLabelText
+{
+if (self.showing && [inLabelText isEqualToString:self.labelText])
+	return;
+
+self.labelText = inLabelText;
+[self showInView:inView withDelay:inTimeInterval];
 }
 
 - (void)showInView:(UIView *)inView withDelay:(NSTimeInterval)inTimeInterval;
@@ -389,7 +399,10 @@ guardView.backgroundColor = (self.guardColor ? self.guardColor : [UIColor clearC
 - (void)fadeIn:(NSTimer *)theTimer
 {
 if (self.alpha >= 1.0)
+    {
     [theTimer invalidate];
+    theTimer = NULL;
+    }
 else
     self.alpha += 0.1;
 }
@@ -399,6 +412,7 @@ else
 if (self.alpha <= 0.1)
     {
     [theTimer invalidate];
+    theTimer = NULL;
     [guardView removeFromSuperview];
     [self removeFromSuperview];
     }

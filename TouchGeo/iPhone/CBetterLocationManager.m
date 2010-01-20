@@ -29,13 +29,22 @@
 
 #import "CBetterLocationManager.h"
 
-//#define FAKE 1
-
 static CBetterLocationManager *gInstance = NULL;
+
+NSString *kBetterLocationManagerDidUpdateToLocationNotification = @"CBetterLocationManagerDidUpdateToLocationNotification";
+NSString *kBetterLocationManagerDidReceiveStaleLocationNotification = @"CBetterLocationManagerDidReceiveStaleLocationNotification";
+NSString *kBetterLocationManagerDidStartUpdatingLocationNotification = @"CBetterLocationManagerDidStartUpdatingLocationNotification";
+NSString *kBetterLocationManagerDidStopUpdatingLocationNotification = @"CBetterLocationManagerDidStopUpdatingLocationNotification";
+NSString *kBetterLocationManagerDidFailWithErrorNotification = @"CBetterLocationManagerDidFailWithErrorNotification";
+NSString *kBetterLocationManagerDidFailWithUserDeniedErrorNotification = @"CBetterLocationManagerDidFailWithUserDeniedErrorNotification";
+
+NSString *kBetterLocationManagerNewLocationKey = @"NewLocation";
+NSString *kBetterLocationManagerOldLocationKey = @"OldLocation";
 
 @interface CBetterLocationManager ()
 @property (readwrite, nonatomic, retain) CLLocation *location;
 @property (readwrite, nonatomic, assign) BOOL updating;
+@property (readwrite, nonatomic, assign) BOOL userDenied;
 @property (readwrite, nonatomic, retain) NSDate *startedUpdatingAtTime;
 @property (readwrite, nonatomic, assign) NSTimer *timer;
 
@@ -44,15 +53,17 @@ static CBetterLocationManager *gInstance = NULL;
 
 @implementation CBetterLocationManager
 
-@synthesize locationManager;
+@dynamic locationManager;
 @dynamic distanceFilter;
 @dynamic desiredAccuracy;
 @synthesize location;
 @synthesize updating;
+@synthesize userDenied;
 @synthesize startedUpdatingAtTime;
 @synthesize stopUpdatingAccuracy;
+@synthesize staleLocationThreshold;
 @dynamic stopUpdatingAfterInterval;
-@dynamic timer;
+@synthesize timer;
 
 // [[[CLLocation alloc] initWithLatitude:34.5249 longitude:-82.6683] autorelease];
 
@@ -69,10 +80,8 @@ return(gInstance);
 {
 if ((self = [super init]) != NULL)
 	{
-	self.locationManager = [[[CLLocationManager alloc] init] autorelease];
-	self.locationManager.delegate = self;
-	self.location = self.locationManager.location;
 	self.stopUpdatingAccuracy = kCLLocationAccuracyHundredMeters;
+	self.staleLocationThreshold = 120.0;
 	self.stopUpdatingAfterInterval = 10.0;
 	if (self.location)
 		[self postNewLocation:self.location oldLocation:NULL];
@@ -82,20 +91,49 @@ return(self);
 
 - (void)dealloc
 {
-[self stopUpdatingLocation];
+[self stopUpdatingLocation:NULL];
 
 [self.timer invalidate];
 self.timer = NULL;
 
-self.locationManager.delegate = NULL;
 self.locationManager = NULL;
-self.location = NULL;
 self.startedUpdatingAtTime = NULL;
 
 [super dealloc];
 }
 
 #pragma mark -
+
+- (CLLocationManager *)locationManager
+{
+if (locationManager == NULL)
+	{
+	locationManager = [[CLLocationManager alloc] init];
+	locationManager.delegate = self;
+	
+	self.location = locationManager.location;
+	}
+return(locationManager);
+}
+
+- (void)setLocationManager:(CLLocationManager *)inLocationManager
+{
+if (locationManager != inLocationManager)
+	{
+	if (locationManager)
+		{
+		locationManager.delegate = NULL;
+		[locationManager release];
+		locationManager = NULL;
+		}
+	
+	if (inLocationManager)
+		{
+		locationManager = inLocationManager;
+		locationManager.delegate = self;
+		}
+	}
+}
 
 - (CLLocationDistance)distanceFilter
 {
@@ -119,32 +157,58 @@ self.locationManager.desiredAccuracy = inDesiredAccuracy;
 
 #pragma mark -
 
-- (void)startUpdatingLocation
+- (BOOL)startUpdatingLocation:(NSError **)outError
 {
 if (self.updating == NO)
 	{
+	if (self.userDenied == YES)
+		{
+		if (outError)
+			*outError = [NSError errorWithDomain:kCLErrorDomain code:kCLErrorDenied userInfo:NULL];
+		return(NO);
+		}
+
 	self.startedUpdatingAtTime = [NSDate date];
 	self.updating = YES;
-	self.locationManager.delegate = self;
 	[self.locationManager startUpdatingLocation];
-	[[NSNotificationCenter defaultCenter] postNotificationName:CBetterLocationManagerDidStartUpdatingLocationNotification object:self userInfo:NULL];
+	[[NSNotificationCenter defaultCenter] postNotificationName:kBetterLocationManagerDidStartUpdatingLocationNotification object:self userInfo:NULL];
 	if (self.stopUpdatingAfterInterval > 0.0)
 		{
+		if (self.timer)
+			{
+			[self.timer invalidate];
+			self.timer = NULL;
+			}
+		
 		self.timer = [NSTimer scheduledTimerWithTimeInterval:self.stopUpdatingAfterInterval target:self selector:@selector(stopUpdatingTimerDidFire:) userInfo:NULL repeats:NO];	
 		}
 	}
+return(YES);
 }
 
-- (void)stopUpdatingLocation
+- (BOOL)stopUpdatingLocation:(NSError **)outError
 {
 if (self.updating == YES)
 	{
-	[self.locationManager stopUpdatingLocation];
-	self.locationManager.delegate = nil;
-	[[NSNotificationCenter defaultCenter] postNotificationName:CBetterLocationManagerDidStopUpdatingLocationNotification object:self userInfo:NULL];
+	if (self.userDenied == NO && self.location != NULL)
+		{
+		NSMutableDictionary *theUserInfo = [NSMutableDictionary dictionary];
+		[theUserInfo setObject:self.location forKey:kBetterLocationManagerNewLocationKey];
+		[[NSNotificationCenter defaultCenter] postNotificationName:kBetterLocationManagerDidStopUpdatingLocationNotification object:self userInfo:theUserInfo];
+		}
 	self.updating = NO;
-	self.timer = NULL;
+	if (self.timer)
+		{
+		[self.timer invalidate];
+		self.timer = NULL;
+		}
+
+	if (locationManager)
+		{
+		[self.locationManager stopUpdatingLocation];
+		}
 	}
+return(YES);
 }
 
 - (NSTimeInterval)stopUpdatingAfterInterval
@@ -157,63 +221,63 @@ return(stopUpdatingAfterInterval);
 stopUpdatingAfterInterval = inStopUpdatingAfterInterval;
 if (updating == YES && stopUpdatingAfterInterval > 0.0)
 	{
+	if (self.timer)
+		{
+		[self.timer invalidate];
+		self.timer = NULL;
+		}
 	self.timer = [NSTimer scheduledTimerWithTimeInterval:self.stopUpdatingAfterInterval target:self selector:@selector(stopUpdatingTimerDidFire:) userInfo:NULL repeats:NO];	
 	}
 }
 
 #pragma mark -
 
-- (NSTimer *)timer
-{
-return timer; 
-}
-
-- (void)setTimer:(NSTimer *)inTimer
-{
-if (timer != inTimer)
-	{
-	if (timer != NULL)
-		{
-		[timer invalidate];
-		timer = NULL;
-		}
-
-	if (inTimer != NULL)
-		{
-		timer = inTimer;
-		}
-    }
-}
-
-#pragma mark -
-
 - (void)postNewLocation:(CLLocation *)inNewLocation oldLocation:(CLLocation *)inOldLocation
 {
-self.location = inNewLocation;
+if (inNewLocation == NULL)
+	return;
 
-NSDictionary *theUserInfo = [NSDictionary dictionaryWithObjectsAndKeys:
-	inNewLocation, @"NewLocation",
-	inOldLocation, @"OldLocation",
-	NULL];
+NSTimeInterval theAge = fabs([inNewLocation.timestamp timeIntervalSinceNow]);
 
-if (self.location.horizontalAccuracy <= self.stopUpdatingAccuracy)
+if (self.staleLocationThreshold > 0.0 && theAge >= self.staleLocationThreshold)
 	{
-	[self stopUpdatingLocation];
+	NSDictionary *theUserInfo = [NSDictionary dictionaryWithObjectsAndKeys:
+		inNewLocation, kBetterLocationManagerNewLocationKey,
+		inOldLocation, kBetterLocationManagerOldLocationKey,
+		NULL];
+
+	[[NSNotificationCenter defaultCenter] postNotificationName:kBetterLocationManagerDidReceiveStaleLocationNotification object:self userInfo:theUserInfo];
+	
+	return;
 	}
 
+self.location = inNewLocation;
+//self.oldLocation = inOldLocation;
 
-[[NSNotificationCenter defaultCenter] postNotificationName:CBetterLocationManagerDidUpdateToLocationNotification object:self userInfo:theUserInfo];
+if (self.stopUpdatingAccuracy > 0.0 && inNewLocation.horizontalAccuracy <= self.stopUpdatingAccuracy)
+	{
+	[self stopUpdatingLocation:NULL];
+	}
+
+NSDictionary *theUserInfo = [NSDictionary dictionaryWithObjectsAndKeys:
+	inNewLocation, kBetterLocationManagerNewLocationKey,
+	inOldLocation, kBetterLocationManagerOldLocationKey,
+	NULL];
+
+[[NSNotificationCenter defaultCenter] postNotificationName:kBetterLocationManagerDidUpdateToLocationNotification object:self userInfo:theUserInfo];
 }
 
 #pragma mark -
 
 - (void)stopUpdatingTimerDidFire:(NSTimer *)inTimer
 {
-if (self.timer == inTimer)
+if (self.timer)
 	{
-	[self stopUpdatingLocation];
+	[self.timer invalidate];
 	self.timer = NULL;
 	}
+
+[self stopUpdatingLocation:NULL];
 }
 
 #pragma mark -
@@ -223,12 +287,21 @@ if (self.timer == inTimer)
 [self postNewLocation:inNewLocation oldLocation:inOldLocation];
 }
 
-- (void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)error
+- (void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)inError
 {
-NSDictionary *theUserInfo = [NSDictionary dictionaryWithObjectsAndKeys:
-							 error, @"Error",
-							 NULL];
-[[NSNotificationCenter defaultCenter] postNotificationName:CBetterLocationManagerDidFailWithErrorNotification object:self userInfo:theUserInfo];
+if ([inError.domain isEqualToString:kCLErrorDomain] && inError.code == kCLErrorDenied)
+	{
+	self.userDenied = YES;
+	// We ought to stop updating here and set the location manager to NULL. But this seems to cause weird problems. Better to just set a flag and move on.
+//	[self stopUpdatingLocation:NULL];
+//	self.locationManager = NULL;
+	
+	NSDictionary *theUserInfo = [NSDictionary dictionaryWithObjectsAndKeys: inError, @"Error", NULL];
+	[[NSNotificationCenter defaultCenter] postNotificationName:kBetterLocationManagerDidFailWithUserDeniedErrorNotification object:self userInfo:theUserInfo];
+	}
+
+NSDictionary *theUserInfo = [NSDictionary dictionaryWithObjectsAndKeys: inError, @"Error", NULL];
+[[NSNotificationCenter defaultCenter] postNotificationName:kBetterLocationManagerDidFailWithErrorNotification object:self userInfo:theUserInfo];
 }
 
 @end
