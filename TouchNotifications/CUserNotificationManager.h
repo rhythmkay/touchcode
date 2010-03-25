@@ -43,6 +43,8 @@
 - (void)dequeueNotificationForIdentifier:(NSString *)inIdentifier;
 - (void)dequeueCurrentNotification;
 
+- (BOOL)notificationExistsForIdentifier:(NSString *)inIdentifier;
+
 @end
 
 #pragma mark -

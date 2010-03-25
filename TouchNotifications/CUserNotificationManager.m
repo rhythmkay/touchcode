@@ -221,7 +221,8 @@ return(theNotificationStyle);
 		{
 		NSLog(@"Did not find notification for identifier: %@", inIdentifier);
 		}
-	theState.requestedHideDate = CFAbsoluteTimeGetCurrent();
+//		CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+		theState.requestedHideDate = theState.requestedShowDate + self.minimumDisplayTime;
 	[self nextNotification];
 	}
 
@@ -237,58 +238,62 @@ return(theNotificationStyle);
 }
 
 #pragma mark -
+- (BOOL)notificationExistsForIdentifier:(NSString *)inIdentifier
+{
+	BOOL notificationExists = NO;
+	@synchronized(self) {
+		for (CUserNotificationState *notificationState in notificationStates) {
+			if ([notificationState.notification.identifier isEqualToString:inIdentifier]) {
+				notificationExists = YES;
+			}
+		}
+	}
+	return notificationExists;
+}
+
+#pragma mark -
 
 - (void)nextNotification
 {
-NSAssert(self.notificationStates.count > 0, @"TODO");
+	NSAssert(self.notificationStates.count > 0, @"TODO");
 
-if ([NSThread isMainThread] == NO)
-	{
-	NSInvocation *theInvocation = [NSInvocation invocationWithMethodSignature:[self methodSignatureForSelector:_cmd]];
-	[theInvocation setTarget:self];
-//	[theInvocation setArgument:&inImmediately atIndex:2];
-	//	
-	[theInvocation performSelectorOnMainThread:@selector(invoke) withObject:NULL waitUntilDone:YES];
-	return;
+	if ([NSThread isMainThread] == NO) {
+		NSInvocation *theInvocation = [NSInvocation invocationWithMethodSignature:[self methodSignatureForSelector:_cmd]];
+//		[theInvocation setTarget:self];
+	//	[theInvocation setArgument:&inImmediately atIndex:2];
+		//	
+		[theInvocation performSelectorOnMainThread:@selector(invoke) withObject:NULL waitUntilDone:YES];
+		return;
 	}
 
-@synchronized(self)
-	{
-//	NSLog(@"**** nextNotification");
-
-	const CFAbsoluteTime theNow = CFAbsoluteTimeGetCurrent();
-	
-	// Go through every notification and hide any that are shown AND are beyond their requestedHideDate
-	NSMutableArray *theRemovedNotifications = [NSMutableArray array];
-	for (CUserNotificationState *theState in self.notificationStates)
-		{
-		if (theNow > theState.requestedHideDate)
-			{
-			[theRemovedNotifications addObject:theState];
+	@synchronized(self) {
+	//	NSLog(@"**** nextNotification");
+		const CFAbsoluteTime theNow = CFAbsoluteTimeGetCurrent();
+		
+		// Go through every notification and hide any that are shown AND are beyond their requestedHideDate
+		NSMutableArray *theRemovedNotifications = [NSMutableArray array];
+		for (CUserNotificationState *theState in self.notificationStates) {
+			if (theNow > theState.requestedHideDate) {
+				[theRemovedNotifications addObject:theState];
 			}
 		}
-	for (CUserNotificationState *theState in theRemovedNotifications)
-		{
-		[self hideNotificationInternal:theState];
+		for (CUserNotificationState *theState in theRemovedNotifications) {
+			[self hideNotificationInternal:theState];
 		}
 
-//	theOldState.requestedHideDate = theOldState.showDate + self.minimumDisplayTime;
+//		theOldState.requestedHideDate = theOldState.showDate + self.minimumDisplayTime;
 
-	CUserNotificationState *theNewState = self.nextNotificationState;
-	if (theNewState)
-		{
-		if (theNow > theNewState.requestedHideDate)
-			{
-			[self.notificationStates removeObject:theNewState];
-			}
-		else
-			{
-			[self showNotificationInternal:theNewState];
+		CUserNotificationState *theNewState = self.nextNotificationState;
+		if (theNewState) {
+			if (theNow > theNewState.requestedHideDate)	{
+				[self.notificationStates removeObject:theNewState];
+			} else {
+				[self showNotificationInternal:theNewState];
 			}
 		}
 	}
 
-[self nextTimer];
+	[self nextTimer];
 }
 
 - (void)nextTimer
@@ -400,7 +405,6 @@ theNotification.progress = INFINITY;
 [self enqueueNotification:theNotification];
 return(theNotification);
 }
-
 - (CUserNotification *)enqueueNetworkingNotificationWithMessage:(NSString *)inMessage identifier:(NSString *)inIdentifier;
 {
 NSLog(@"ENQUEUE: %@ %@", inMessage, inIdentifier);
