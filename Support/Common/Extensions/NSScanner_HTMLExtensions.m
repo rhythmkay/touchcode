@@ -44,6 +44,7 @@ HTMLEntity kRawEntities[] = {
 	// C0 Controls and Basic Latin
 	{ .name = "quot", .codePoint = 34, .unicode = 0x0022 }, // quotation mark = APL quote, U+0022 ISOnum
 	{ .name = "amp", .codePoint = 38, .unicode = 0x0026 }, // ampersand, U+0026 ISOnum
+	{ .name = "apos", .codePoint = 39, .unicode = 0x0027 }, // apostrophe, not standard ISO, but commonly used in some XML and XHTML
 	{ .name = "lt", .codePoint = 60, .unicode = 0x003C }, // less-than sign, U+003C ISOnum
 	{ .name = "gt", .codePoint = 62, .unicode = 0x003E }, // greater-than sign, U+003E ISOnum
 
