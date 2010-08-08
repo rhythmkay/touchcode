@@ -33,10 +33,14 @@
 	IBOutlet UITableView *outletTableView;
 	UITableViewStyle initialStyle;
 	BOOL clearsSelectionOnViewWillAppear;
+    UIBarButtonItem *addButtonItem;
 }
 
 @property (readwrite, nonatomic, retain) UITableView *tableView;
 @property (readwrite, nonatomic, assign) UITableViewStyle initialStyle;
 @property (readwrite, nonatomic, assign) BOOL clearsSelectionOnViewWillAppear;
+@property (readonly, nonatomic, retain) UIBarButtonItem *addButtonItem;
+
+- (IBAction)add:(id)inSender;
 
 @end

@@ -63,6 +63,17 @@ outletTableView = NULL;
 
 #pragma mark -
 
+- (UIBarButtonItem *)addButtonItem
+{
+if (addButtonItem == NULL)
+    {
+    addButtonItem = [[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(add:)] autorelease];
+    }
+return(addButtonItem);
+}
+
+#pragma mark -
+
 - (void)loadView
 {
 [super loadView];
@@ -128,6 +139,12 @@ if (self.clearsSelectionOnViewWillAppear == YES)
 [super setEditing:inEditing animated:inAnimated];
 //
 [self.tableView setEditing:inEditing animated:inAnimated];
+
+self.addButtonItem.enabled = !inEditing;
+}
+
+- (IBAction)add:(id)inSender
+{
 }
 
 #pragma mark -
