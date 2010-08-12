@@ -119,13 +119,12 @@ return(theResult);
 
 - (NSData *)serializeNull:(NSNull *)inNull error:(NSError **)outError
 {
-#pragma unused (inNull, outError)
+#pragma unused (inNull)
 return(kNULL);
 }
 
 - (NSData *)serializeNumber:(NSNumber *)inNumber error:(NSError **)outError
 {
-#pragma unused (outError)
 NSData *theResult = NULL;
 switch (CFNumberGetType((CFNumberRef)inNumber))
 	{
@@ -162,7 +161,6 @@ return(theResult);
 
 - (NSData *)serializeString:(NSString *)inString error:(NSError **)outError
 {
-#pragma unused (outError)
 NSMutableString *theMutableCopy = [[inString mutableCopy] autorelease];
 [theMutableCopy replaceOccurrencesOfString:@"\\" withString:@"\\\\" options:0 range:NSMakeRange(0, [theMutableCopy length])];
 [theMutableCopy replaceOccurrencesOfString:@"\"" withString:@"\\\"" options:0 range:NSMakeRange(0, [theMutableCopy length])];
