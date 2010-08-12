@@ -39,7 +39,6 @@
 	u_int8_t *current;
 	NSUInteger length;
 	
-	NSCharacterSet *integerCharacters;
 	NSCharacterSet *doubleCharacters;
 }
 
